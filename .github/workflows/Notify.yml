@@ -36,7 +36,6 @@ jobs:
           curl -s "https://api.github.com/repos/reyyuuki/Azyx/tags" -o tags.json
           TAGS=$(jq -r '.[].name' tags.json)
 
-          # Initialize an array for storing tags with timestamps
           declare -a TAGS_WITH_DATES=()
 
           for TAG in $TAGS; do
@@ -45,7 +44,7 @@ jobs:
           OBJECT_URL=$(echo "$TAG_DETAILS" | jq -r '.object.url // empty')
 
           if [ -n "$OBJECT_URL" ]; then
-           # Fetch detailed object information
+          # Fetch detailed object information
           OBJECT_DETAILS=$(curl -s "$OBJECT_URL")
           DATE=$(echo "$OBJECT_DETAILS" | jq -r '.tagger.date // .committer.date // empty')
 
@@ -61,7 +60,7 @@ jobs:
 
           # Get the latest tag
           LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV          
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV      
           
       - name: Use the Latest Tag
         run: |
