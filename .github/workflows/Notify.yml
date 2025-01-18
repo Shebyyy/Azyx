@@ -40,7 +40,7 @@ jobs:
 
           for TAG in $TAGS; do
             # Fetch tag reference details
-            TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
+            TAG_DETAILS=$(curl -s "https://api.github.com/repos/Shebyyy/Azyx/git/refs/tags/$TAG")
             OBJECT_URL=$(echo "$TAG_DETAILS" | jq -r '.object.url // empty')
 
             if [ -n "$OBJECT_URL" ]; then
