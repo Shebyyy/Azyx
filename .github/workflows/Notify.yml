@@ -39,24 +39,36 @@ jobs:
           declare -a TAGS_WITH_DATES=()
 
           for TAG in $TAGS; do
-          # Fetch tag reference details to get the object URL
+          # Fetch tag reference details
           TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
           OBJECT_URL=$(echo "$TAG_DETAILS" | jq -r '.object.url // empty')
 
           if [ -n "$OBJECT_URL" ]; then
-          # Fetch detailed object information
+          # Fetch object details for date
           OBJECT_DETAILS=$(curl -s "$OBJECT_URL")
           DATE=$(echo "$OBJECT_DETAILS" | jq -r '.tagger.date // .committer.date // empty')
 
           if [ -n "$DATE" ]; then
-          # Store the date and tag pair
+          # Append date and tag pair
           TAGS_WITH_DATES+=("$DATE $TAG")
+          else
+          echo "No date found for tag $TAG"
           fi
+          else
+          echo "No object URL found for tag $TAG"
           fi
           done
 
+          # Debugging: Print unsorted tags
+          echo "Unsorted tags with dates:"
+          printf "%s\n" "${TAGS_WITH_DATES[@]}"
+
           # Sort tags by date and time
           SORTED_TAGS=$(printf "%s\n" "${TAGS_WITH_DATES[@]}" | sort)
+
+          # Debugging: Print sorted tags
+          echo "Sorted tags with dates:"
+          printf "%s\n" "$SORTED_TAGS"
 
           # Get the latest tag
           LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
