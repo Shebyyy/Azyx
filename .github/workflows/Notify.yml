@@ -29,35 +29,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests jq
           
-      - name: Fetch Repository Tags by Date
+      - name: Fetch Repository Tags by Date and Time
         id: fetch_tags
         run: |
-          curl -s "https://api.github.com/repos/Shebyyy/Azyx/tags" -o tags.json
+          # Fetch tags from the GitHub repository
+          curl -s "https://api.github.com/repos/reyyuuki/Azyx/tags" -o tags.json
           TAGS=$(jq -r '.[].name' tags.json)
-  
-          # Initialize an empty array for storing tag details with timestamps
+
+          # Initialize an array for storing tags with timestamps
           declare -a TAGS_WITH_DATES=()
-    
+
           for TAG in $TAGS; do
           # Fetch tag reference details to get the object URL
-          TAG_DETAILS=$(curl -s "https://api.github.com/repos/Shebyyy/Azyx/git/refs/tags/$TAG")
+          TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
           OBJECT_URL=$(echo "$TAG_DETAILS" | jq -r '.object.url // empty')
-  
+
           if [ -n "$OBJECT_URL" ]; then
-          # Fetch object details (annotated tag or commit)
+           # Fetch detailed object information
           OBJECT_DETAILS=$(curl -s "$OBJECT_URL")
           DATE=$(echo "$OBJECT_DETAILS" | jq -r '.tagger.date // .committer.date // empty')
-  
+
           if [ -n "$DATE" ]; then
-          # Append date and tag pair
+          # Store the date and tag pair
           TAGS_WITH_DATES+=("$DATE $TAG")
           fi
           fi
           done
-  
-          # Sort tags by date
+
+          # Sort tags by date and time
           SORTED_TAGS=$(printf "%s\n" "${TAGS_WITH_DATES[@]}" | sort)
-  
+
           # Get the latest tag
           LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV          
