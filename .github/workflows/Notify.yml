@@ -63,16 +63,23 @@ jobs:
           echo "Unsorted tags with dates:"
           printf "%s\n" "${TAGS_WITH_DATES[@]}"
 
-          # Sort tags by date and time
-          SORTED_TAGS=$(printf "%s\n" "${TAGS_WITH_DATES[@]}" | sort)
+          # Find the tag with the latest date (no sorting)
+          LATEST_TAG=""
+          LATEST_DATE=""
 
-          # Debugging: Print sorted tags
-          echo "Sorted tags with dates:"
-          printf "%s\n" "$SORTED_TAGS"
+          for TAG_DATE in "${TAGS_WITH_DATES[@]}"; do
+          TAG_DATE_TIME=$(echo "$TAG_DATE" | awk '{print $1}')
+          TAG_NAME=$(echo "$TAG_DATE" | awk '{print $2}')
 
-          # Get the latest tag
-          LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV      
+          if [[ -z "$LATEST_DATE" || "$TAG_DATE_TIME" > "$LATEST_DATE" ]]; then
+          LATEST_DATE="$TAG_DATE_TIME"
+          LATEST_TAG="$TAG_NAME"
+          fi
+          done
+
+          # Output the latest tag found
+          echo "The selected latest tag is: $LATEST_TAG"
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           
       - name: Use the Latest Tag
         run: |
