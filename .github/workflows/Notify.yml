@@ -105,7 +105,7 @@ jobs:
           # Replace "):" with ") :"
           tel_commit=$(echo "$commit" | sed -E 's/\): [^:]+:/) :/g')
           # Replace lines containing '---' with a single blank line, then remove other blank lines
-          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/d'
+          tel_commit=$(echo "$tel_commit" | sed '/^[[:space:]]*$/d' | sed '/---/s/.*$/\n/')
 
           # Count total commits
           commit_count=$(echo "$tel_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
