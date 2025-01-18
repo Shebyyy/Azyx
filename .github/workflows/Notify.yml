@@ -29,12 +29,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests jq
           
-      - name: Fetch Repository Tags
+      - name: Fetch Repository Tags by Date
         id: fetch_tags
         run: |
           curl -s "https://api.github.com/repos/reyyuuki/Azyx/tags" -o tags.json
-          TAGS=$(jq -r '.[].name' tags.json | sort -V)
-          LATEST_TAG=$(echo "$TAGS" | tail -n 1)
+          TAGS=$(jq -r '.[].name' tags.json)
+  
+          # Initialize an empty array for storing tag details with timestamps
+          TAGS_WITH_DATES=()
+  
+          for TAG in $TAGS; do
+          # Fetch tag details to extract date
+           TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
+            DATE=$(echo "$TAG_DETAILS" | jq -r '.object.date // empty')
+  
+            if [ -n "$DATE" ]; then
+            TAGS_WITH_DATES+=("$DATE $TAG")
+          fi
+          done
+  
+          # Sort tags by date
+          SORTED_TAGS=$(printf "%s\n" "${TAGS_WITH_DATES[@]}" | sort)
+  
+          # Get the latest tag
+          LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
           echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
           
       - name: Use the Latest Tag
