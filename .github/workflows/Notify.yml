@@ -36,15 +36,21 @@ jobs:
           TAGS=$(jq -r '.[].name' tags.json)
   
           # Initialize an empty array for storing tag details with timestamps
-          TAGS_WITH_DATES=()
-  
+          declare -a TAGS_WITH_DATES=()
+    
           for TAG in $TAGS; do
-          # Fetch tag details to extract date
-           TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
-            DATE=$(echo "$TAG_DETAILS" | jq -r '.object.date // empty')
+          # Fetch tag reference details to get the object URL
+          TAG_DETAILS=$(curl -s "https://api.github.com/repos/reyyuuki/Azyx/git/refs/tags/$TAG")
+          OBJECT_URL=$(echo "$TAG_DETAILS" | jq -r '.object.url // empty')
   
-            if [ -n "$DATE" ]; then
-            TAGS_WITH_DATES+=("$DATE $TAG")
+          if [ -n "$OBJECT_URL" ]; then
+          # Fetch object details (annotated tag or commit)
+          OBJECT_DETAILS=$(curl -s "$OBJECT_URL")
+          DATE=$(echo "$OBJECT_DETAILS" | jq -r '.tagger.date // .committer.date // empty')
+  
+          if [ -n "$DATE" ]; then
+          # Append date and tag pair
+          TAGS_WITH_DATES+=("$DATE $TAG")
           fi
           done
   
@@ -53,7 +59,7 @@ jobs:
   
           # Get the latest tag
           LATEST_TAG=$(echo "$SORTED_TAGS" | tail -n 1 | awk '{print $2}')
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV          
           
       - name: Use the Latest Tag
         run: |
