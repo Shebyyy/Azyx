@@ -105,7 +105,7 @@ jobs:
           # Replace "):" with ") :"
           tel_commit=$(echo "$commit" | sed -E 's/\): [^:]+:/) :/g')
           # Remove lines containing ---
-          tel_commit=$(echo "$tel_commit" | sed '/---/d' | sed '/^[[:space:]]*$/d')
+          tel_commit=$(echo "$tel_commit" | sed '/---/d' | sed '/^[[:space:]]*$/N;/^\n$/d')
 
           # Count total commits
           commit_count=$(echo "$tel_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
@@ -175,7 +175,7 @@ jobs:
           discord_commit=$(echo "$RELEASE_NOTES" | sed -E 's/\): [^:]+:/) :/g' | sed 's/^* /> /g')
 
           # Remove lines containing ---
-          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/d')
+          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/N;/^\n$/d')
         
           # Count the number of commit IDs
           commit_count=$(echo "$discord_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
