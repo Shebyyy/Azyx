@@ -175,7 +175,7 @@ jobs:
           discord_commit=$(echo "$RELEASE_NOTES" | sed -E 's/\): [^:]+:/) :/g' | sed 's/^* /> /g')
 
           # Remove lines containing ---
-          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/N;/^\n$/d')
+          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/d')
         
           # Count the number of commit IDs
           commit_count=$(echo "$discord_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
