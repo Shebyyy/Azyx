@@ -52,6 +52,7 @@ jobs:
           # Append date and tag pair
           TAGS_WITH_DATES+=("$DATE $TAG")
           fi
+          fi
           done
   
           # Sort tags by date
