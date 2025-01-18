@@ -105,7 +105,10 @@ jobs:
           # Replace "):" with ") :"
           tel_commit=$(echo "$commit" | sed -E 's/\): [^:]+:/) :/g')
           # Remove lines containing ---
-          tel_commit=$(echo "$tel_commit" | sed '/---/d' | sed '/^[[:space:]]*$/N;/^\n$/d')
+          tel_commit=$(echo "$tel_commit" | sed '/---/d')
+
+          # Ensure exactly one blank line after each section
+          tel_commit=$(echo "$tel_commit" | sed -E '/^[^[:space:]]/ { N; /^\n$/! s/$/\n/ }')
 
           # Count total commits
           commit_count=$(echo "$tel_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
