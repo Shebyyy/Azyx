@@ -209,7 +209,7 @@ jobs:
             🔹 ${{ env.apk_universal_message }} | **APK (universal)**
             🔹 ${{ env.apk_x86_64_message }} | **APK (x86 & x64)**
             🔹 ${{ env.linux_message }} | **Linux**
-            🔹 ${{ env.ios_message }} | **iOS**
+            🔹 ${{ env.ios_message }} | **iOS**"
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
             -d '{
@@ -278,7 +278,7 @@ jobs:
             🔹 ${{ env.apk_universal_message }} | **APK (universal)**
             🔹 ${{ env.apk_x86_64_message }} | **APK (x86 & x64)**
             🔹 ${{ env.linux_message }} | **Linux**
-            🔹 ${{ env.ios_message }} | **iOS**
+            🔹 ${{ env.ios_message }} | **iOS**"
           PAYLOAD=$(jq -n --arg content "$MESSAGE" '{ content: $content }')
           curl -X POST "${{ env.DISCORD_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
