@@ -122,7 +122,6 @@ jobs:
   build-windows:
     if: false  # This will skip the Windows build
     runs-on: windows-latest
-    needs: generate-changelog
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -154,7 +153,6 @@ jobs:
   build-macos:
     if: false  # This will skip the Macos build
     runs-on: macos-latest
-    needs: generate-changelog
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
