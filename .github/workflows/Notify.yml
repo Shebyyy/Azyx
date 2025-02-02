@@ -3,7 +3,7 @@ name: Notify Release
 on:
   workflow_run:
     workflows:
-      - "changelog" # Name of the triggering workflow
+      - "Build and Release Azyx" # Name of the triggering workflow
     types:
       - completed
   workflow_dispatch: # Allow manual triggering of this workflow
