@@ -145,7 +145,7 @@ jobs:
           if [[ "${RELEASE_NAME}" == *alpha ]]; then
             echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_ALPHA }}" >> $GITHUB_ENV
           else
-            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK }}" >> $GITHUB_ENV
+            echo "DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK_BETA }}" >> $GITHUB_ENV
           fi
     
       - name: Send Release Notes to Telegram
