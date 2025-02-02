@@ -3,7 +3,7 @@ name: Notify Release
 on:
   workflow_run:
     workflows:
-      - "Build and Release Azyx" # Name of the triggering workflow
+      - "changelog" # Name of the triggering workflow
     types:
       - completed
   workflow_dispatch: # Allow manual triggering of this workflow
@@ -126,8 +126,16 @@ jobs:
               echo "apk_x86_64_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
             elif [[ "$FILE_NAME" == *.ipa ]]; then
               echo "ios_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
+            elif [[ "$FILE_NAME" == *"Linux.AppImage" ]]; then
+              echo "linuximg_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
             elif [[ "$FILE_NAME" == *"Linux.zip" ]]; then
               echo "linux_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
+            elif [[ "$FILE_NAME" == *"Installer.exe" ]]; then
+              echo "setup_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
+            elif [[ "$FILE_NAME" == *"Windows.zip" ]]; then
+              echo "windows_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
+            elif [[ "$FILE_NAME" == *".dmg" ]]; then
+              echo "macos_message=[Download]($ASSET_URL) | $SIZE_HR" >> $GITHUB_ENV
             fi
           done
           
@@ -145,11 +153,9 @@ jobs:
           # Replace ### with **
           commit=$(echo "$RELEASE_NOTES" | sed 's/^### /**/g')
           # Replace * with 🔹 (excluding headings)
-          commit=$(echo "$commit" | sed 's/^- /🔹 /g')
+          commit=$(echo "$commit" | sed 's/^* /🔹 /g')
           # Replace "):" with ") :"
           tel_commit=$(echo "$commit" | sed -E 's/\): [^:]+:/) :/g')
-          # Replace lines containing '---' with a single blank line, then remove other blank lines
-          tel_commit=$(echo "$tel_commit" | sed '/^[[:space:]]*$/d' | sed 's/`//g' | sed '/---/s/.*$/\n/')
 
           # Count total commits
           commit_count=$(echo "$tel_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
@@ -203,7 +209,7 @@ jobs:
             🔹 ${{ env.apk_universal_message }} | **APK (universal)**
             🔹 ${{ env.apk_x86_64_message }} | **APK (x86 & x64)**
             🔹 ${{ env.linux_message }} | **Linux**
-            🔹 ${{ env.ios_message }} | **iOS**"
+            🔹 ${{ env.ios_message }} | **iOS**
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
             -d '{
@@ -217,9 +223,6 @@ jobs:
       
           # Replace "): <text>" with ") : <text>" and format list items
           discord_commit=$(echo "$RELEASE_NOTES" | sed -E 's/\): [^:]+:/) :/g' | sed 's/^* /> /g')
-
-          # Remove lines containing ---
-          discord_commit=$(echo "$discord_commit" | sed '/---/d' | sed '/^[[:space:]]*$/d')
         
           # Count the number of commit IDs
           commit_count=$(echo "$discord_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
@@ -269,13 +272,13 @@ jobs:
             
       - name: Send Assets to Discord
         run: |
-          MESSAGE="**${{ env.LATEST_TAG }} Released**
+          MESSAGE="${{ env.LATEST_TAG }} Released
             🔹 ${{ env.apk_arm64_message }} | **APK (arm64)**
             🔹 ${{ env.apk_armeabi_message }} | **APK (armeabi-v7a)**
             🔹 ${{ env.apk_universal_message }} | **APK (universal)**
             🔹 ${{ env.apk_x86_64_message }} | **APK (x86 & x64)**
             🔹 ${{ env.linux_message }} | **Linux**
-            🔹 ${{ env.ios_message }} | **iOS**"
+            🔹 ${{ env.ios_message }} | **iOS**
           PAYLOAD=$(jq -n --arg content "$MESSAGE" '{ content: $content }')
           curl -X POST "${{ env.DISCORD_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
