@@ -153,9 +153,11 @@ jobs:
           # Replace ### with **
           commit=$(echo "$RELEASE_NOTES" | sed 's/^### /**/g')
           # Replace * with 🔹 (excluding headings)
-          commit=$(echo "$commit" | sed 's/^* /🔹 /g')
+          commit=$(echo "$commit" | sed 's/^- /🔹 /g')
           # Replace "):" with ") :"
           tel_commit=$(echo "$commit" | sed -E 's/\): [^:]+:/) :/g')
+          # Replace lines containing '---' with a single blank line, then remove other blank lines
+          tel_commit=$(echo "$tel_commit" | sed '/^[[:space:]]*$/d' | sed 's/`//g' | sed '/---/s/.*$/\n/')
 
           # Count total commits
           commit_count=$(echo "$tel_commit" | grep -oE '\b[0-9a-f]{7,}\b' | wc -l)
