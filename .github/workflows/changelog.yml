@@ -44,18 +44,19 @@ jobs:
             ALL_SUCCESS=true
           fi
 
-          REQUIRED_JOBS=("build-windows" "build-ios" "build-macos" "build-android" "build-linux")
+          REQUIRED_JOBS=("build")
 
           if [ -n "$JOBS" ] && [ "$JOBS" != "null" ]; then
             for JOB in "${REQUIRED_JOBS[@]}"; do
-              JOB_STATUS=$(echo "$JOBS" | jq -c ".[] | select(.name == \"$JOB\") | .conclusion")
-              if [ -z "$JOB_STATUS" ] || [ "$JOB_STATUS" != '"success"' ]; then
-                echo "Job $JOB failed or was not found. Status: $JOB_STATUS"
-                ALL_SUCCESS=false
-                break
-              else
-                echo "Job $JOB succeeded. Status: $JOB_STATUS"
-              fi
+              JOB_STATUS=$(echo "$JOBS" | jq -c ".[] | select(.name | startswith(\"$JOB\")) | .conclusion")
+              while read -r STATUS; do
+                if [ -z "$STATUS" ] || [ "$STATUS" != '"success"' ]; then
+                  echo "Matrix job for $JOB failed or was not found. Status: $STATUS"
+                  ALL_SUCCESS=false
+                  break 2
+                fi
+              done <<< "$JOB_STATUS"
+              echo "All $JOB matrix jobs succeeded."
             done
           fi
 

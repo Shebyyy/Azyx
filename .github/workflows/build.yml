@@ -11,6 +11,11 @@ on:
         required: true
         default: ""
 
+env:
+  FLUTTER_VERSION: "3.35.6"
+  JAVA_VERSION: "17"
+  MAIN_REPO: "reyyuuki/Azyx"
+
 jobs:
   # ─────────────────────────────────────────────
   # Resolve the version/tag once, share with every platform job
@@ -33,13 +38,36 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved beta version: $VERSION (tag v$VERSION)"
 
-  build-android:
+  # ─────────────────────────────────────────────
+  # Platform builds via matrix
+  # ─────────────────────────────────────────────
+  build:
     needs: resolve-tag
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+            artifact_pattern: "main-repo/build/app/outputs/flutter-apk/Azyx-Beta-Android-*.apk"
+          - platform: ios
+            os: macos-latest
+            artifact_pattern: "main-repo/Azyx-Beta-iOS-*.ipa"
+          - platform: linux
+            os: ubuntu-latest
+            artifact_pattern: "main-repo/Azyx-Beta-Linux.zip"
+          - platform: windows
+            os: windows-latest
+            artifact_pattern: "main-repo/build/windows/x64/runner/Release/Azyx-Beta-Windows.zip"
+          - platform: macos
+            os: macos-latest
+            artifact_pattern: "main-repo/build/macos/Release/Azyx-Beta.dmg"
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: main-repo
     steps:
+      # ── Common: checkout beta repo, clone main, apply rename ──
       - name: Checkout Beta Repo
         uses: actions/checkout@v3
         with:
@@ -47,49 +75,110 @@ jobs:
 
       - name: Clone Main Azyx Repository
         working-directory: .
-        run: |
-          echo "════════════════════════════════════════════"
-          echo "  Cloning Main Repository"
-          echo "════════════════════════════════════════════"
-          git clone --depth 1 https://github.com/reyyuuki/Azyx.git main-repo
-          echo "✅ Cloned reyyuuki/Azyx to main-repo/"
+        shell: bash
+        run: git clone --depth 1 https://github.com/${{ env.MAIN_REPO }}.git main-repo
 
       - name: Copy Beta Assets to Main Repo
         working-directory: .
+        shell: bash
         run: |
-          echo "════════════════════════════════════════════"
-          echo "  Copying Beta Assets"
-          echo "════════════════════════════════════════════"
+          PLATFORM="${{ matrix.platform }}"
+          case "$PLATFORM" in
+            android)
+              if [ -n "$(ls -A beta-repo/logo/android/app/src/main/res 2>/dev/null | grep -v .gitkeep)" ]; then
+                cp -r beta-repo/logo/android/app/src/main/res/* main-repo/android/app/src/main/res/
+                echo "✅ Android icons copied"
+              else
+                echo "⚠️  No beta Android icons, keeping stable icons"
+              fi
+              ;;
+            ios)
+              if [ -n "$(ls -A beta-repo/logo/ios/Runner/Assets.xcassets/AppIcon.appiconset 2>/dev/null | grep -v .gitkeep)" ]; then
+                cp -r beta-repo/logo/ios/Runner/Assets.xcassets/AppIcon.appiconset/* main-repo/ios/Runner/Assets.xcassets/AppIcon.appiconset/
+                echo "✅ iOS icons copied"
+              else
+                echo "⚠️  No beta iOS icons, keeping stable icons"
+              fi
+              ;;
+            macos)
+              if [ -n "$(ls -A beta-repo/logo/macos/Runner/Assets.xcassets/AppIcon.appiconset 2>/dev/null | grep -v .gitkeep)" ]; then
+                cp -r beta-repo/logo/macos/Runner/Assets.xcassets/AppIcon.appiconset/* main-repo/macos/Runner/Assets.xcassets/AppIcon.appiconset/
+                echo "✅ macOS icons copied"
+              else
+                echo "⚠️  No beta macOS icons, keeping stable icons"
+              fi
+              ;;
+            windows)
+              if [ -f beta-repo/logo/windows/runner/resources/app_icon.ico ]; then
+                cp beta-repo/logo/windows/runner/resources/app_icon.ico main-repo/windows/runner/resources/
+                echo "✅ Windows icon copied"
+              else
+                echo "⚠️  No beta Windows icon, keeping stable icon"
+              fi
+              ;;
+          esac
 
-          echo "📱 Copying Android icons..."
-          if [ -n "$(ls -A beta-repo/logo/android/app/src/main/res 2>/dev/null | grep -v .gitkeep)" ]; then
-            cp -r beta-repo/logo/android/app/src/main/res/* main-repo/android/app/src/main/res/
-            echo "✅ Android icons copied"
-          else
-            echo "⚠️  No beta Android icons in beta-repo/logo yet, keeping stable icons"
-          fi
-
-          echo "📜 Copying rename script..."
           cp beta-repo/scripts/rename_app.sh main-repo/scripts/rename_app.sh
           chmod +x main-repo/scripts/rename_app.sh
           echo "✅ Rename script copied"
 
       - name: Run Beta Rename Script
-        run: ./scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
+        shell: bash
+        run: bash scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
 
+      # ── Platform-specific setup ──
       - name: Setup Java
+        if: matrix.platform == 'android'
         uses: actions/setup-java@v3
         with:
           distribution: "adopt"
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
 
+      - name: Install Linux System Dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build cmake clang mpv libgtk-3-dev libblkid-dev liblzma-dev pkg-config libmpv-dev webkit2gtk-4.1
+
+      # ── Common: Flutter setup + env + deps ──
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.35.6"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
+      - name: Setup .env File
+        shell: bash
+        env:
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
+          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
+          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
+          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
+          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
+          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
+          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
+        run: |
+          cat > .env <<EOF
+          CLIENT_ID=$CLIENT_ID
+          CLIENT_SECRET=$CLIENT_SECRET
+          MAL_CLIENT_ID=$MAL_CLIENT_ID
+          MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET
+          REDIRECT_URL=$REDIRECT_URL
+          SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID
+          SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET
+          BOT_API_SECRET=$BOT_API_SECRET
+          BOT_BASE_URL=$BOT_BASE_URL
+          EOF
+
+      - name: Get Dependencies
+        run: flutter pub get
+
+      # ── Platform-specific build + package + release ──
+      # Android
       - name: Cache Gradle
+        if: matrix.platform == 'android'
         uses: actions/cache@v3
         with:
           path: |
@@ -100,6 +189,7 @@ jobs:
             ${{ runner.os }}-gradle-beta-
 
       - name: Cache CMake
+        if: matrix.platform == 'android'
         id: cache-cmake
         uses: actions/cache@v3
         with:
@@ -107,28 +197,28 @@ jobs:
           key: cmake-3.18.1-linux-x64
 
       - name: Download and Install CMake 3.18.1
-        if: steps.cache-cmake.outputs.cache-hit != 'true'
+        if: matrix.platform == 'android' && steps.cache-cmake.outputs.cache-hit != 'true'
         run: |
           mkdir -p $HOME/cmake
           cd $HOME/cmake
           wget https://github.com/Kitware/CMake/releases/download/v3.18.1/cmake-3.18.1-Linux-x86_64.tar.gz
           tar -xzf cmake-3.18.1-Linux-x86_64.tar.gz
           ln -s $HOME/cmake/cmake-3.18.1-Linux-x86_64/bin/cmake $HOME/cmake/cmake
-          $HOME/cmake/cmake-3.18.1-Linux-x86_64/bin/cmake --version
 
       - name: Setup CMake path in local.properties
+        if: matrix.platform == 'android'
         run: |
           CMAKE_DIR="$HOME/cmake/cmake-3.18.1-Linux-x86_64"
           echo "cmake.dir=$CMAKE_DIR" >> android/local.properties
-          echo "CMake directory set to: $CMAKE_DIR"
-          cat android/local.properties
 
       - name: Download keystore
+        if: matrix.platform == 'android'
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 --decode > android/app/azyx.jks
 
       - name: Set up signing variables
+        if: matrix.platform == 'android'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -139,117 +229,20 @@ jobs:
           echo "keyAlias=$KEY_ALIAS" >> android/key.properties
           echo "storeFile=azyx.jks" >> android/key.properties
 
-      - name: Setup .env File
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
-          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
-          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
-          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
+      - name: Build Android
+        if: matrix.platform == 'android'
         run: |
-          echo "CLIENT_ID=$CLIENT_ID" > .env
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> .env
-          echo "MAL_CLIENT_ID=$MAL_CLIENT_ID" >> .env
-          echo "MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET" >> .env
-          echo "REDIRECT_URL=$REDIRECT_URL" >> .env
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> .env
-          echo "SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET" >> .env
-          echo "BOT_API_SECRET=$BOT_API_SECRET" >> .env
-          echo "BOT_BASE_URL=$BOT_BASE_URL" >> .env
-
-      - name: Get Dependencies
-        run: flutter pub get
-
-      - name: Build Android with Split ABI
-        run: flutter build apk --split-per-abi
-
-      - name: Rename APKs
-        run: |
+          flutter build apk --split-per-abi
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk build/app/outputs/flutter-apk/Azyx-Beta-Android-armeabi-v7a.apk
           mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/app/outputs/flutter-apk/Azyx-Beta-Android-arm64.apk
           mv build/app/outputs/flutter-apk/app-x86_64-release.apk build/app/outputs/flutter-apk/Azyx-Beta-Android-x86_64.apk
+          flutter build apk --release
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Azyx-Beta-Android-universal.apk
 
-      - name: Build Universal APK
-        run: flutter build apk --release
-
-      - name: Rename Universal APK
-        run: mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Azyx-Beta-Android-universal.apk
-
-      - name: Release Android APKs
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "main-repo/build/app/outputs/flutter-apk/Azyx-Beta-Android-*.apk"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          tag: ${{ needs.resolve-tag.outputs.tag }}
-
-  build-ios:
-    needs: resolve-tag
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: main-repo
-    steps:
-      - name: Checkout Beta Repo
-        uses: actions/checkout@v3
-        with:
-          path: beta-repo
-
-      - name: Clone Main Azyx Repository
-        working-directory: .
-        run: git clone --depth 1 https://github.com/reyyuuki/Azyx.git main-repo
-
-      - name: Copy Beta Assets to Main Repo
-        working-directory: .
-        run: |
-          if [ -n "$(ls -A beta-repo/logo/ios/Runner/Assets.xcassets/AppIcon.appiconset 2>/dev/null | grep -v .gitkeep)" ]; then
-            cp -r beta-repo/logo/ios/Runner/Assets.xcassets/AppIcon.appiconset/* main-repo/ios/Runner/Assets.xcassets/AppIcon.appiconset/
-            echo "✅ iOS icons copied"
-          else
-            echo "⚠️  No beta iOS icons in beta-repo/logo yet, keeping stable icons"
-          fi
-          cp beta-repo/scripts/rename_app.sh main-repo/scripts/rename_app.sh
-          chmod +x main-repo/scripts/rename_app.sh
-
-      - name: Run Beta Rename Script
-        run: ./scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.32.8"
-          cache: true
-
-      - name: Setup .env File
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
-          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
-          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
-          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
-        run: |
-          echo "CLIENT_ID=$CLIENT_ID" > .env
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> .env
-          echo "MAL_CLIENT_ID=$MAL_CLIENT_ID" >> .env
-          echo "MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET" >> .env
-          echo "REDIRECT_URL=$REDIRECT_URL" >> .env
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> .env
-          echo "SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET" >> .env
-          echo "BOT_API_SECRET=$BOT_API_SECRET" >> .env
-          echo "BOT_BASE_URL=$BOT_BASE_URL" >> .env
-
-      - name: Get Dependencies
-        run: flutter pub get
-
+      # iOS
       - name: Build iOS
+        if: matrix.platform == 'ios'
+        shell: bash
         run: |
           flutter build ios --release --no-codesign
           cd build/ios/iphoneos
@@ -260,240 +253,31 @@ jobs:
           zip -r Azyx-Beta-iOS-${{ needs.resolve-tag.outputs.tag }}.ipa Payload
           mv Azyx-Beta-iOS-${{ needs.resolve-tag.outputs.tag }}.ipa ../../../
 
-      - name: Release iOS IPA
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "main-repo/Azyx-Beta-iOS-*.ipa"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          tag: ${{ needs.resolve-tag.outputs.tag }}
-
-  build-linux:
-    needs: resolve-tag
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: main-repo
-    steps:
-      - name: Checkout Beta Repo
-        uses: actions/checkout@v3
-        with:
-          path: beta-repo
-
-      - name: Clone Main Azyx Repository
-        working-directory: .
-        run: git clone --depth 1 https://github.com/reyyuuki/Azyx.git main-repo
-
-      - name: Copy Beta Assets to Main Repo
-        working-directory: .
-        run: |
-          cp beta-repo/scripts/rename_app.sh main-repo/scripts/rename_app.sh
-          chmod +x main-repo/scripts/rename_app.sh
-
-      - name: Run Beta Rename Script
-        run: ./scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build cmake clang mpv libgtk-3-dev libblkid-dev liblzma-dev pkg-config libmpv-dev webkit2gtk-4.1
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.32.8"
-          cache: true
-
-      - name: Setup .env File
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
-          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
-          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
-          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
-        run: |
-          echo "CLIENT_ID=$CLIENT_ID" > .env
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> .env
-          echo "MAL_CLIENT_ID=$MAL_CLIENT_ID" >> .env
-          echo "MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET" >> .env
-          echo "REDIRECT_URL=$REDIRECT_URL" >> .env
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> .env
-          echo "SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET" >> .env
-          echo "BOT_API_SECRET=$BOT_API_SECRET" >> .env
-          echo "BOT_BASE_URL=$BOT_BASE_URL" >> .env
-
-      - name: Get Dependencies
-        run: flutter pub get
-
+      # Linux
       - name: Build Linux
-        run: flutter build linux --release
-
-      - name: Zip Linux Artifacts
+        if: matrix.platform == 'linux'
         run: |
+          flutter build linux --release
           cd build/linux/x64/release
           mkdir -p bundle/lib
-          cp ../../../linux-fix/* bundle/lib/ || true
+          cp ../../../../linux-fix/* bundle/lib/ || true
           zip -r ../../../../Azyx-Beta-Linux.zip .
 
-      - name: Release Linux Build
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "main-repo/Azyx-Beta-Linux.zip"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          tag: ${{ needs.resolve-tag.outputs.tag }}
-
-  build-windows:
-    needs: resolve-tag
-    runs-on: windows-latest
-    defaults:
-      run:
-        working-directory: main-repo
-    steps:
-      - name: Checkout Beta Repo
-        uses: actions/checkout@v3
-        with:
-          path: beta-repo
-
-      - name: Clone Main Azyx Repository
-        shell: bash
-        working-directory: .
-        run: git clone --depth 1 https://github.com/reyyuuki/Azyx.git main-repo
-
-      - name: Copy Beta Assets to Main Repo
-        shell: bash
-        working-directory: .
-        run: |
-          if [ -f beta-repo/logo/windows/runner/resources/app_icon.ico ]; then
-            cp beta-repo/logo/windows/runner/resources/app_icon.ico main-repo/windows/runner/resources/
-            echo "✅ Windows icon copied"
-          else
-            echo "⚠️  No beta Windows icon in beta-repo/logo yet, keeping stable icon"
-          fi
-          cp beta-repo/scripts/rename_app.sh main-repo/scripts/rename_app.sh
-
-      - name: Run Beta Rename Script
-        shell: bash
-        run: bash scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.32.8"
-          cache: true
-
-      - name: Setup .env File
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
-          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
-          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
-          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
-        run: |
-          echo "CLIENT_ID=$CLIENT_ID" > .env
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> .env
-          echo "MAL_CLIENT_ID=$MAL_CLIENT_ID" >> .env
-          echo "MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET" >> .env
-          echo "REDIRECT_URL=$REDIRECT_URL" >> .env
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> .env
-          echo "SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET" >> .env
-          echo "BOT_API_SECRET=$BOT_API_SECRET" >> .env
-          echo "BOT_BASE_URL=$BOT_BASE_URL" >> .env
-
-      - name: Get Dependencies
-        run: flutter pub get
-
+      # Windows
       - name: Build Windows
-        run: flutter build windows --release
-
-      - name: Create ZIP file for Windows Build
+        if: matrix.platform == 'windows'
+        shell: bash
         run: |
+          flutter build windows --release
           cd build/windows/x64/runner/Release
-          Compress-Archive -Path * -DestinationPath Azyx-Beta-Windows.zip
+          powershell -Command "Compress-Archive -Path * -DestinationPath Azyx-Beta-Windows.zip"
 
-      - name: Release Windows Builds
-        uses: ncipollo/release-action@v1
-        with:
-          artifacts: "main-repo/build/windows/x64/runner/Release/Azyx-Beta-Windows.zip"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          tag: ${{ needs.resolve-tag.outputs.tag }}
-
-  build-macos:
-    needs: resolve-tag
-    runs-on: macos-latest
-    defaults:
-      run:
-        working-directory: main-repo
-    steps:
-      - name: Checkout Beta Repo
-        uses: actions/checkout@v3
-        with:
-          path: beta-repo
-
-      - name: Clone Main Azyx Repository
-        working-directory: .
-        run: git clone --depth 1 https://github.com/reyyuuki/Azyx.git main-repo
-
-      - name: Copy Beta Assets to Main Repo
-        working-directory: .
-        run: |
-          if [ -n "$(ls -A beta-repo/logo/macos/Runner/Assets.xcassets/AppIcon.appiconset 2>/dev/null | grep -v .gitkeep)" ]; then
-            cp -r beta-repo/logo/macos/Runner/Assets.xcassets/AppIcon.appiconset/* main-repo/macos/Runner/Assets.xcassets/AppIcon.appiconset/
-            echo "✅ macOS icons copied"
-          else
-            echo "⚠️  No beta macOS icons in beta-repo/logo yet, keeping stable icons"
-          fi
-          cp beta-repo/scripts/rename_app.sh main-repo/scripts/rename_app.sh
-          chmod +x main-repo/scripts/rename_app.sh
-
-      - name: Run Beta Rename Script
-        run: ./scripts/rename_app.sh "${{ needs.resolve-tag.outputs.version }}"
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.32.8"
-          cache: true
-
-      - name: Setup .env File
-        env:
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
-          MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
-          REDIRECT_URL: ${{ secrets.REDIRECT_URL }}
-          SIMKL_CLIENT_ID: ${{ secrets.SIMKL_CLIENT_ID }}
-          SIMKL_CLIENT_SECRET: ${{ secrets.SIMKL_CLIENT_SECRET }}
-          BOT_API_SECRET: ${{ secrets.BOT_API_SECRET }}
-          BOT_BASE_URL: ${{ secrets.BOT_BASE_URL }}
-        run: |
-          echo "CLIENT_ID=$CLIENT_ID" > .env
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> .env
-          echo "MAL_CLIENT_ID=$MAL_CLIENT_ID" >> .env
-          echo "MAL_CLIENT_SECRET=$MAL_CLIENT_SECRET" >> .env
-          echo "REDIRECT_URL=$REDIRECT_URL" >> .env
-          echo "SIMKL_CLIENT_ID=$SIMKL_CLIENT_ID" >> .env
-          echo "SIMKL_CLIENT_SECRET=$SIMKL_CLIENT_SECRET" >> .env
-          echo "BOT_API_SECRET=$BOT_API_SECRET" >> .env
-          echo "BOT_BASE_URL=$BOT_BASE_URL" >> .env
-
-      - name: Get Dependencies
-        run: flutter pub get
-
+      # macOS
       - name: Build macOS
-        run: flutter build macos --release
-
-      - name: Create DMG file for macOS Build
+        if: matrix.platform == 'macos'
+        shell: bash
         run: |
+          flutter build macos --release
           set -e
           APP_PATH="build/macos/Build/Products/Release/azyx_beta.app"
           if [ ! -d "$APP_PATH" ]; then
@@ -504,76 +288,18 @@ jobs:
             ls -la build/macos/Build/Products/Release/ || true
             exit 1
           fi
-
           mkdir -p build/macos/Release
           mkdir -p temp_dir
           cp -r "$APP_PATH" temp_dir/
           ln -s /Applications temp_dir/Applications
-
-          hdiutil create \
-            -volname "Azyx Beta" \
-            -srcfolder temp_dir \
-            -ov \
-            -format UDZO \
-            build/macos/Release/Azyx-Beta.dmg
-
+          hdiutil create -volname "Azyx Beta" -srcfolder temp_dir -ov -format UDZO build/macos/Release/Azyx-Beta.dmg
           rm -rf temp_dir
 
-      - name: Release macOS Builds
+      # ── Common: Release ──
+      - name: Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "main-repo/build/macos/Release/Azyx-Beta.dmg"
-          token: ${{ secrets.GITHUB_TOKEN }}
-          allowUpdates: true
-          tag: ${{ needs.resolve-tag.outputs.tag }}
-
-  generate-changelog:
-    needs: [resolve-tag, build-android, build-ios, build-linux]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Beta Repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate Changelog
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -E '\-beta' | sed -n '2p')
-          CURRENT_TAG="${{ needs.resolve-tag.outputs.tag }}"
-          if [ -z "$PREVIOUS_TAG" ]; then
-            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
-          fi
-
-          echo "# Changelog" > CHANGELOG.md
-          echo "## $CURRENT_TAG" >> CHANGELOG.md
-          echo "" >> CHANGELOG.md
-
-          add_section() {
-            local section_title="$1"
-            local grep_pattern="$2"
-            local commits=$(git log "$PREVIOUS_TAG"..HEAD --grep="$grep_pattern" --pretty=format:"* [\`%h\`](https://github.com/${{ github.repository }}/commit/%h): %s")
-            if [ ! -z "$commits" ]; then
-              echo "## $section_title" >> CHANGELOG.md
-              echo "$commits" >> CHANGELOG.md
-              echo "" >> CHANGELOG.md
-            fi
-          }
-
-          add_section "🎉 New Features" "^feat:"
-          add_section "🛠️ Bug Fixes & Improvements" "^fix:"
-          add_section "🔧 Refactors" "^refactor:"
-          add_section "🎨 Style Changes" "^style:"
-          add_section "🚀 Performance Improvements" "^perf:"
-          add_section "🧹 Chores & Documentation" "^(chore|docs):"
-
-          cat CHANGELOG.md
-
-      - name: Update Release with Changelog
-        uses: ncipollo/release-action@v1
-        with:
-          bodyFile: "CHANGELOG.md"
+          artifacts: "${{ matrix.artifact_pattern }}"
           token: ${{ secrets.GITHUB_TOKEN }}
           allowUpdates: true
           tag: ${{ needs.resolve-tag.outputs.tag }}
