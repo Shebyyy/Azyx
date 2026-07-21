@@ -175,9 +175,6 @@ jobs:
       - name: Clean Flutter build cache
         run: flutter clean
 
-      - name: Remove stale pubspec.lock
-        run: rm -f pubspec.lock
-
       - name: Get Dependencies
         run: flutter pub get
 
