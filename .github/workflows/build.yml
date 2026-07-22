@@ -62,6 +62,7 @@ jobs:
           - platform: macos
             os: macos-latest
             artifact_pattern: "main-repo/build/macos/Release/Azyx-Beta.dmg"
+    continue-on-error: ${{ matrix.platform != 'android' }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:
