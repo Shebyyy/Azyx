@@ -193,7 +193,9 @@ jobs:
 
           REPO_URL="https://github.com/reyyuuki/Azyx"
 
-          while IFS='|||' read -r HASH MESSAGE; do
+          while IFS= read -r LINE; do
+            HASH="${LINE%%|||*}"
+            MESSAGE="${LINE#*|||}"
             [ -z "$HASH" ] && continue
 
             CLEAN_MESSAGE=$(echo "$MESSAGE" | sed 's/#[0-9]\+//g' | sed 's/[^a-zA-Z0-9 .,:!-]//g' | tr '[:upper:]' '[:lower:]' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
@@ -432,7 +434,9 @@ jobs:
             echo "$response" | jq -r '.author.login // "ghost"'
           }
 
-          while IFS='|||' read -r HASH MESSAGE; do
+          while IFS= read -r LINE; do
+            HASH="${LINE%%|||*}"
+            MESSAGE="${LINE#*|||}"
             [ -z "$HASH" ] && continue
             AUTHOR_USERNAME=$(get_author_username "$HASH")
             echo "Processing commit: $HASH - $MESSAGE by $AUTHOR_USERNAME"

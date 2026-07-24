@@ -330,7 +330,7 @@ jobs:
 
       - name: Send Assets to Telegram
         run: |
-          MESSAGE="🎉 *${{ env.LATEST_TAG }} Released* 🎉\n\n${{ env.ASSETS }}"
+          MESSAGE=$(printf '🎉 *%s Released* 🎉\n\n%s' "${{ env.LATEST_TAG }}" "${{ env.ASSETS }}")
           PAYLOAD=$(jq -n --arg chat_id "${{ secrets.TELEGRAM_CHAT_ID }}" --arg text "$MESSAGE" \
             '{chat_id: $chat_id, text: $text, parse_mode: "Markdown"}')
           curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
@@ -392,7 +392,7 @@ jobs:
 
       - name: Send Assets to Discord
         run: |
-          MESSAGE="${{ env.LATEST_TAG }} Released\n\n${{ env.ASSETS }}"
+          MESSAGE=$(printf '%s Released\n\n%s' "${{ env.LATEST_TAG }}" "${{ env.ASSETS }}")
           PAYLOAD=$(jq -n --arg content "$MESSAGE" '{ content: $content }')
           curl -X POST "${{ env.DISCORD_WEBHOOK_URL }}" \
             -H "Content-Type: application/json" \
